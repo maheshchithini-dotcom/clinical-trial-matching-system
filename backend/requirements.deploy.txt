@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+pydantic
+pydantic-settings
+python-dotenv
+sentence-transformers
+faiss-cpu
+pandas
+requests
+python-multipart
+PyPDF2
+python-docx
