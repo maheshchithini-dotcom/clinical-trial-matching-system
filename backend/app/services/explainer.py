@@ -29,6 +29,10 @@ def generate_dynamic_explanation(score: float, matched_terms: list) -> str:
     else:
         explanation += "Moderate relevance based on general medical context and trial focus. "
 
-    explanation += "BioBERT analysis confirmed medical context alignment."
+    from app.services.preprocessing import USE_BIOBERT
+    if USE_BIOBERT:
+        explanation += "BioBERT analysis confirmed medical context alignment."
+    else:
+        explanation += "Clinical semantic analysis confirmed medical context alignment."
     
     return explanation
