@@ -44,8 +44,9 @@ const PatientForm: React.FC<PatientFormProps> = ({ onSuccess }) => {
     try {
       const data = await patientService.parseDocument(file);
       setFormData(prev => ({ ...prev, history: data.text }));
-    } catch (err) {
-      setError('Failed to parse document. Please ensure it is a PDF or DOCX.');
+    } catch (err: any) {
+      const msg = err.response?.data?.detail || err.message || 'Failed to parse document.';
+      setError(`Parsing Error: ${msg}`);
     } finally {
       setIsUploading(false);
     }
