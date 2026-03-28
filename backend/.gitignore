@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+
+# Virtual Environment
+venv/
+env/
+
+# Environment Variables (NEVER commit these)
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+startup_log.txt
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# FAISS index (generated at runtime)
+*.index
