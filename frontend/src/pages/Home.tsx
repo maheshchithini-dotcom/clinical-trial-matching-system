@@ -3,7 +3,10 @@ import { patientService, trialService } from '../services/api';
 import { Activity, Users, Database, CheckCircle2, XCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 
+import { useNavigate } from 'react-router-dom';
+
 const Home = () => {
+  const navigate = useNavigate();
   const [stats, setStats] = useState({ patients: 0, trials: 0 });
   const [health, setHealth] = useState<'pending' | 'ok' | 'fail'>('pending');
 
@@ -74,7 +77,10 @@ const Home = () => {
             "We focus on accuracy. Our AI scans medical histories to find the perfect study match automatically."
           </p>
           <div className="flex space-x-4 pt-2">
-            <button className="px-5 py-2.5 bg-white text-indigo-600 font-semibold rounded-xl hover:bg-indigo-50 transition-colors">
+            <button 
+              onClick={() => navigate('/patients')}
+              className="px-5 py-2.5 bg-white text-indigo-600 font-semibold rounded-xl hover:bg-indigo-50 transition-colors"
+            >
               Add a Patient
             </button>
           </div>
