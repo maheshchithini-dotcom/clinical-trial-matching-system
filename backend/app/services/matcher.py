@@ -5,6 +5,16 @@ from app.services.embedding import generate_embeddings
 from app.services.explainer import generate_dynamic_explanation, get_confidence_level
 from app.core.constants import SCORE_DECAY_FACTOR, CONDITION_MATCH_BOOST
 
+import re
+
+STOP_WORDS = {"the", "a", "an", "is", "are", "of", "to", "in", "and", "or", "for", "with", "on", "at", "by", "patient", "year", "old", "diagnosed", "history", "has", "been", "was", "this", "that"}
+
+def _extract_keywords(text: str):
+    if not text:
+        return set()
+    words = re.findall(r'\b\w+\b', text.lower())
+    return set(w for w in words if len(w) > 2 and w not in STOP_WORDS)
+
 def match_patient_to_trials(patient_id: int, db: Session):
     patient = get_patient(db, patient_id)
     if not patient:
@@ -14,33 +24,52 @@ def match_patient_to_trials(patient_id: int, db: Session):
     if not trials:
         return []
 
-    patient_conditions_list = [c.strip() for c in patient.conditions.split(",")]
-    patient_history_words = set(patient.history.lower().split()) if patient.history else set()
+    patient_conditions_list = [c.strip().lower() for c in patient.conditions.split(",")]
     
+    patient_keywords = _extract_keywords(patient.history)
+    for c in patient_conditions_list:
+        patient_keywords.update(_extract_keywords(c))
+
     matches_unsorted = []
     
     for trial in trials:
         trial_condition_lower = trial.condition.lower() if trial.condition else ""
         trial_text_lower = trial.text.lower() if trial.text else ""
         
+        trial_keywords = _extract_keywords(trial_text_lower)
+        trial_keywords.update(_extract_keywords(trial_condition_lower))
+        
         boost = 0.0
         matched_terms = []
         
         for cond in patient_conditions_list:
-            if cond.lower() in trial_condition_lower or cond.lower() in trial_text_lower:
+            cond_words = _extract_keywords(cond)
+            # Exact Substring Match gives max boost
+            if cond in trial_condition_lower or cond in trial_text_lower:
+                boost += CONDITION_MATCH_BOOST * 2.0
+                matched_terms.append(cond)
+            # Or subset match gives normal boost
+            elif cond_words and cond_words.issubset(trial_keywords):
                 boost += CONDITION_MATCH_BOOST
                 matched_terms.append(cond)
                 
-        # Quick text overlap for baseline score
-        trial_words = set(trial_text_lower.split())
-        overlap = len(patient_history_words.intersection(trial_words))
+        # Jaccard Similarity for context overlap
+        intersection = patient_keywords.intersection(trial_keywords)
+        union = patient_keywords.union(trial_keywords)
         
-        # Compute final score without PyTorch ML models
-        raw_score = 0.3 + (min(overlap, 20) * 0.01) # Baseline 0.3 -> 0.5
+        jaccard = len(intersection) / len(union) if union else 0.0
+        
+        # Base score purely on textual Jaccard overlap (0.3 -> 0.7)
+        raw_score = 0.3 + (jaccard * 0.4) 
+        
         final_score = min(0.99, raw_score + boost)
         
+        # If perfect exact matches exist, ensure the score floors at 0.85
+        if boost >= (CONDITION_MATCH_BOOST * 2.0):
+            final_score = max(0.85, final_score)
+            
         confidence = get_confidence_level(final_score)
-        explanation = generate_dynamic_explanation(final_score, matched_terms)
+        explanation = generate_dynamic_explanation(final_score, list(set(matched_terms)))
 
         matches_unsorted.append({
             "trial_id": trial.id,
@@ -55,6 +84,5 @@ def match_patient_to_trials(patient_id: int, db: Session):
             "eligible": True 
         })
         
-    # Return top 5 matches
     matches_unsorted.sort(key=lambda x: x["score"], reverse=True)
     return matches_unsorted[:5]
