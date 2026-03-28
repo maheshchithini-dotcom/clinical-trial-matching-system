@@ -32,10 +32,22 @@ def match_patient_to_trials(patient_id: int, db: Session):
 
     matches_unsorted = []
     
+    # Strict Condition Filter
+    def passes_condition_filter(patient_conditions, trial_condition, trial_text):
+        for cond in patient_conditions:
+            # Check if condition is directly in the trial condition string or description
+            if cond in trial_condition or cond in trial_text:
+                return True
+        return False
+        
     for trial in trials:
         trial_condition_lower = trial.condition.lower() if trial.condition else ""
         trial_text_lower = trial.text.lower() if trial.text else ""
         
+        # Skip completely irrelevant trials
+        if not passes_condition_filter(patient_conditions_list, trial_condition_lower, trial_text_lower):
+            continue
+            
         trial_keywords = _extract_keywords(trial_text_lower)
         trial_keywords.update(_extract_keywords(trial_condition_lower))
         
