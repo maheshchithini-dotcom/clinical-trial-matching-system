@@ -1,13 +1,15 @@
 import os
 
+from sentence_transformers import SentenceTransformer
+
 USE_BIOBERT = os.getenv("USE_BIOBERT", "true").lower() == "true"
 
 if USE_BIOBERT:
-    from sentence_transformers import SentenceTransformer
     try:
         from transformers import AutoTokenizer, AutoModel
         import torch
-    except Exception:
+    except ImportError:
+        print("⚠️ BioBERT dependencies not found. Falling back to lightweight mode.")
         USE_BIOBERT = False
 
 # Primary embedding model – lightweight and always loaded
