@@ -1,6 +1,6 @@
 import os
 
-USE_BIOBERT = os.getenv("USE_BIOBERT", "true").lower() == "true"
+USE_BIOBERT = False  # Hardcoded False to prevent 502 Bad Gateway OOM on Render
 
 if USE_BIOBERT:
     try:
