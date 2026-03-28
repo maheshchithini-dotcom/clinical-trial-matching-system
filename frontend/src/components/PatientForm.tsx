@@ -126,7 +126,10 @@ const PatientForm: React.FC<PatientFormProps> = ({ onSuccess }) => {
 
       {error && (
         <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-xs flex items-center gap-2">
-          <AlertCircle size={14} /> {error}
+          <AlertCircle size={14} /> 
+          <span className="flex-1">
+            {typeof error === 'string' ? error : (error as any).message || 'An unexpected error occurred.'}
+          </span>
         </div>
       )}
 

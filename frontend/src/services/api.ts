@@ -56,8 +56,8 @@ export const trialService = {
 
 export const matchingService = {
   matchPatient: async (patientId: number) => {
-    const response = await api.post(`/match/match/${patientId}`);
-    return response.data;
+    const response = await api.get(`/match/${patientId}`);
+    return response.data.matches;
   },
 };
 

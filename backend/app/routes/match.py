@@ -5,7 +5,7 @@ from app.services.matcher import match_patient_to_trials
 
 router = APIRouter()
 
-@router.get("/match/{patient_id}")
+@router.get("/{patient_id}")
 def match_patient(patient_id: int, db: Session = Depends(get_db)):
     """
     Find matching trials for a specific patient.
