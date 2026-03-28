@@ -1,5 +1,3 @@
-import faiss
-import numpy as np
 from sqlalchemy.orm import Session
 from app.db.crud import get_patient, get_all_trials
 from app.services.preprocessing import extract_clinical_features
@@ -8,6 +6,9 @@ from app.services.explainer import generate_dynamic_explanation, get_confidence_
 from app.core.constants import SCORE_DECAY_FACTOR, CONDITION_MATCH_BOOST
 
 def match_patient_to_trials(patient_id: int, db: Session):
+    # Move heavy imports here so they don't block app startup
+    import faiss
+    import numpy as np
     patient = get_patient(db, patient_id)
     if not patient:
         return []
