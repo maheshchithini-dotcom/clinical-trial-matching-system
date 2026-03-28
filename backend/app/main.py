@@ -28,9 +28,9 @@ def startup_event():
         print(f"⚠️ Database initialization error: {e}")
 
 # Include routers
-app.include_router(patient.router, tags=["Patients"])
-app.include_router(trial.router, tags=["Trials"])
-app.include_router(match.router, tags=["Matching"])
+app.include_router(patient.router, prefix="/patient", tags=["Patients"])
+app.include_router(trial.router, prefix="/trial", tags=["Trials"])
+app.include_router(match.router, prefix="/match", tags=["Matching"])
 
 @app.get("/")
 def read_root():
