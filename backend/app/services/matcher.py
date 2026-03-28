@@ -45,7 +45,7 @@ def match_patient_to_trials(patient_id: int, db: Session):
     
     patient_embedding = np.array([generate_embeddings(patient_text)]).astype('float32')
     
-    k = min(10, len(trial_ids))
+    k = min(5, len(trial_ids))
     D, I = index.search(patient_embedding, k)
     
     matches = []

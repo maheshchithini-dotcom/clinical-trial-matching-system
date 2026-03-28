@@ -29,7 +29,7 @@ const Trials = () => {
   const handleSync = async () => {
     setSyncing(true);
     try {
-      await trialService.syncTrials();
+      await trialService.syncTrials(search || 'cancer');
       await fetchTrials();
     } catch (error) {
       console.error('Sync failed', error);

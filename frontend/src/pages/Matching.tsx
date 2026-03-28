@@ -101,7 +101,7 @@ const Matching = () => {
         <div className="lg:col-span-2 space-y-6">
           <div className="flex items-center space-x-3 mb-2">
             <h2 className="text-2xl font-bold text-slate-900 font-display">Match Results</h2>
-            <div className="px-2 py-0.5 bg-indigo-600 text-white rounded text-[10px] font-bold">TOP 10</div>
+            <div className="px-2 py-0.5 bg-indigo-600 text-white rounded text-[10px] font-bold">TOP 5</div>
           </div>
 
           {loading ? (

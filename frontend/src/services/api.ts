@@ -49,8 +49,8 @@ export const trialService = {
     const response = await api.get('/trial/');
     return response.data;
   },
-  syncTrials: async () => {
-    const response = await api.post('/trial/fetch_trials');
+  syncTrials: async (condition: string = 'cancer') => {
+    const response = await api.post(`/trial/fetch_trials?condition=${encodeURIComponent(condition)}`);
     return response.data;
   },
 };

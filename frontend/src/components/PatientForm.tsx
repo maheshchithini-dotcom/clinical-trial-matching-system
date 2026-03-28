@@ -25,7 +25,7 @@ const PatientForm: React.FC<PatientFormProps> = ({ onSuccess }) => {
     try {
       await patientService.createPatient({
         ...formData,
-        conditions: formData.conditions
+        conditions: formData.conditions.split(',').map(c => c.trim()).filter(c => c)
       });
       onSuccess();
     } catch (err: any) {
