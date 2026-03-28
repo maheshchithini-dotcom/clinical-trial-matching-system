@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "AI-powered Clinical Trial Matching System"
     
     # Database
-    DATABASE_URL: str = os.getenv("DATABASE_URL")
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./clinical_db.db")
     
     # AI Models
     EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
