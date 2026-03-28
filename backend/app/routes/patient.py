@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.schemas.patient_schema import PatientCreate
 from app.db.database import get_db
 from app.db.crud import create_patient, get_all_patients
+from app.services.document_service import extract_text_from_file
 
 router = APIRouter()
 
@@ -31,4 +32,7 @@ async def parse_patient_document(file: UploadFile = File(...)):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
+        import traceback
+        print("❌ Error parsing document:")
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Error parsing document: {str(e)}")
