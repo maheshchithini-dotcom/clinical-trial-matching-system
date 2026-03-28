@@ -1,75 +1,79 @@
 import React, { useState, useRef } from 'react';
-import axios from 'axios';
-import { User, Calendar, FileText, Send, Upload, FileCheck, AlertCircle } from 'lucide-react';
+import { patientService } from '../services/api';
+import { User, Calendar, Send, Upload, FileCheck, AlertCircle } from 'lucide-react';
 
 interface PatientFormProps {
-  onSubmit: (data: any) => void;
-  loading: boolean;
+  onSuccess: () => void;
 }
 
-const PatientForm: React.FC<PatientFormProps> = ({ onSubmit, loading }) => {
+const PatientForm: React.FC<PatientFormProps> = ({ onSuccess }) => {
   const [formData, setFormData] = useState({
     age: 45,
     gender: 'male',
     conditions: 'Diabetes, Hypertension',
     history: ''
   });
+  const [loading, setLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit({
-      ...formData,
-      conditions: formData.conditions.split(',').map(c => c.trim())
-    });
+    setLoading(true);
+    setError(null);
+    try {
+      await patientService.createPatient({
+        ...formData,
+        conditions: formData.conditions
+      });
+      onSuccess();
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Failed to save patient.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const formDataFile = new FormData();
-    formDataFile.append('file', file);
-
     setIsUploading(true);
-    setUploadError(null);
+    setError(null);
     try {
-      const response = await axios.post(`${import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'}/patient/parse_document`, formDataFile);
-      setFormData(prev => ({ ...prev, history: response.data.text }));
+      const data = await patientService.parseDocument(file);
+      setFormData(prev => ({ ...prev, history: data.text }));
     } catch (err) {
-      setUploadError('Failed to parse document. Please ensure it is a PDF, DOCX, or TXT file.');
-      console.error(err);
+      setError('Failed to parse document. Please ensure it is a PDF or DOCX.');
     } finally {
       setIsUploading(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-card border border-white/5 rounded-3xl p-8 shadow-2xl space-y-6">
-      <div className="grid grid-cols-2 gap-6">
-        <div className="space-y-2">
-          <label className="text-xs uppercase tracking-widest text-white/40 font-bold ml-1">Age</label>
+    <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Age</label>
           <div className="relative">
-            <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
             <input 
               type="number" 
               value={formData.age}
               onChange={e => setFormData({...formData, age: parseInt(e.target.value)})}
-              className="w-full bg-background border border-white/10 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:border-primary transition-all"
-              placeholder="e.g. 45"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
             />
           </div>
         </div>
-        <div className="space-y-2">
-          <label className="text-xs uppercase tracking-widest text-white/40 font-bold ml-1">Gender</label>
+        <div className="space-y-1.5">
+          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Gender</label>
           <div className="relative">
-            <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/20" />
+            <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
             <select 
               value={formData.gender}
               onChange={e => setFormData({...formData, gender: e.target.value})}
-              className="w-full bg-background border border-white/10 rounded-2xl py-4 pl-12 pr-4 focus:outline-none focus:border-primary transition-all appearance-none"
+              className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all appearance-none"
             >
               <option value="male">Male</option>
               <option value="female">Female</option>
@@ -79,71 +83,60 @@ const PatientForm: React.FC<PatientFormProps> = ({ onSubmit, loading }) => {
         </div>
       </div>
 
-      <div className="space-y-2">
-        <label className="text-xs uppercase tracking-widest text-white/40 font-bold ml-1">Conditions</label>
+      <div className="space-y-1.5">
+        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Conditions</label>
         <input 
           type="text" 
           value={formData.conditions}
           onChange={e => setFormData({...formData, conditions: e.target.value})}
-          className="w-full bg-background border border-white/10 rounded-2xl py-4 px-6 focus:outline-none focus:border-primary transition-all"
-          placeholder="Comma separated: Diabetes, Lung Cancer..."
+          className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 px-4 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
+          placeholder="e.g. Diabetes, Hypertension"
         />
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <div className="flex items-center justify-between ml-1">
-          <label className="text-xs uppercase tracking-widest text-white/40 font-bold">Clinical History / Report</label>
+          <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Clinical History</label>
           <button 
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isUploading}
-            className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-primary hover:text-white transition-colors border border-primary/20 bg-primary/5 px-2.5 py-1 rounded-lg"
+            className="text-[10px] font-bold uppercase text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 px-2 py-1 rounded"
           >
-            {isUploading ? <div className="w-3 h-3 border border-white/30 border-t-white rounded-full animate-spin" /> : <Upload className="w-3 h-3" />}
+            <Upload size={12} />
             {isUploading ? 'Parsing...' : 'Upload Report'}
           </button>
-          <input 
-            type="file" 
-            ref={fileInputRef} 
-            onChange={handleFileUpload} 
-            className="hidden" 
-            accept=".pdf,.docx,.txt"
-          />
+          <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" accept=".pdf,.docx,.txt" />
         </div>
         
         <div className="relative">
-          <FileText className="absolute left-4 top-6 w-4 h-4 text-white/20" />
           <textarea 
             value={formData.history}
             onChange={e => setFormData({...formData, history: e.target.value})}
-            className="w-full bg-background border border-white/10 rounded-2xl py-5 pl-12 pr-6 h-48 focus:outline-none focus:border-primary transition-all resize-none shadow-inner"
-            placeholder="Paste detailed clinical history or upload a report above..."
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl py-4 px-4 h-32 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all resize-none"
+            placeholder="Paste clinical history or upload a report..."
           />
           {formData.history && (
-            <div className="absolute right-4 bottom-4 flex items-center gap-1.5 text-[10px] font-bold uppercase text-secondary/60 bg-secondary/5 px-2 py-1 rounded-md border border-secondary/10">
-              <FileCheck className="w-3 h-3" /> Report Ready
+            <div className="absolute right-3 bottom-3 flex items-center gap-1 text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded border border-green-100">
+              <FileCheck size={12} /> REPORT ATTACHED
             </div>
           )}
         </div>
-        {uploadError && (
-          <div className="flex items-center gap-1.5 text-[10px] text-red-400 font-medium ml-1">
-            <AlertCircle className="w-3 h-3" /> {uploadError}
-          </div>
-        )}
       </div>
+
+      {error && (
+        <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-xs flex items-center gap-2">
+          <AlertCircle size={14} /> {error}
+        </div>
+      )}
 
       <button 
         type="submit" 
         disabled={loading || isUploading}
-        className="w-full bg-gradient-to-r from-primary to-accent hover:shadow-lg hover:shadow-primary/30 transition-all py-5 rounded-2xl font-bold flex items-center justify-center gap-3 disabled:opacity-50"
+        className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-indigo-100"
       >
-        {loading ? (
-          <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-        ) : (
-          <>
-            <Send className="w-5 h-5" />
-            Generate Smart Matches
-          </>
+        {loading ? <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin" /> : (
+          <><Send size={18} /><span>Add Patient Record</span></>
         )}
       </button>
     </form>
