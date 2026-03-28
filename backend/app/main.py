@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import os
 from app.routes import patient, trial, match
 from app.db.database import engine
 from app.db.models import Base
