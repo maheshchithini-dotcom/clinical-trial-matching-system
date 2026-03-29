@@ -1,14 +1,15 @@
 from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
 from sqlalchemy.orm import Session
+from typing import List
 
-from app.schemas.patient_schema import PatientCreate
+from app.schemas.patient_schema import PatientCreate, PatientResponse
 from app.db.database import get_db
 from app.db.crud import create_patient, get_all_patients
 from app.services.document_service import extract_text_from_file
 
 router = APIRouter()
 
-@router.get("/")
+@router.get("/", response_model=List[PatientResponse])
 def list_patients(db: Session = Depends(get_db)):
     return get_all_patients(db)
 

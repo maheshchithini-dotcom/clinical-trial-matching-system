@@ -1,15 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
+from typing import List
 from app.schemas.trial_schema import TrialCreate, TrialResponse
 from app.db.database import get_db
-from app.db.crud import create_trial
-from app.services.ingestion import fetch_trials_from_api
-
 from app.db.crud import create_trial, get_all_trials
+from app.services.ingestion import fetch_trials_from_api
 
 router = APIRouter()
 
-@router.get("/", response_model=list[TrialResponse])
+@router.get("/", response_model=List[TrialResponse])
 def list_trials(db: Session = Depends(get_db)):
     return get_all_trials(db)
 

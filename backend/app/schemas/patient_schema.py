@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 
 # 🔹 Input schema
@@ -11,14 +11,14 @@ class PatientCreate(BaseModel):
     history: str
 
 
-# 🔹 Output schema (response)
+# 🔹 Output schema (response) - returns conditions as a string (comma-separated)
 class PatientResponse(BaseModel):
     id: int
-    name: str = "Anonymous User"
+    name: Optional[str] = "Anonymous User"
     age: int
     gender: str
-    conditions: List[str]
-    history: str
+    conditions: str  # stored as comma-separated string in DB
+    history: Optional[str] = ""
 
     class Config:
         from_attributes = True

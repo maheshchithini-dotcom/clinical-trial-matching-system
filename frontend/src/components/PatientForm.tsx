@@ -8,9 +8,10 @@ interface PatientFormProps {
 
 const PatientForm: React.FC<PatientFormProps> = ({ onSuccess }) => {
   const [formData, setFormData] = useState({
-    age: 45,
+    name: '',
+    age: '',
     gender: 'male',
-    conditions: 'Diabetes, Hypertension',
+    conditions: '',
     history: ''
   });
   const [loading, setLoading] = useState(false);
@@ -23,9 +24,23 @@ const PatientForm: React.FC<PatientFormProps> = ({ onSuccess }) => {
     setLoading(true);
     setError(null);
     try {
+      const age = parseInt(formData.age);
+      if (isNaN(age) || age <= 0 || age > 150) {
+        setError('Please enter a valid age (1-150).');
+        setLoading(false);
+        return;
+      }
+      if (!formData.conditions.trim()) {
+        setError('Please enter at least one condition.');
+        setLoading(false);
+        return;
+      }
       await patientService.createPatient({
-        ...formData,
-        conditions: formData.conditions.split(',').map(c => c.trim()).filter(c => c)
+        name: formData.name.trim() || 'Anonymous User',
+        age: age,
+        gender: formData.gender,
+        conditions: formData.conditions.split(',').map(c => c.trim()).filter(c => c),
+        history: formData.history
       });
       onSuccess();
     } catch (err: any) {
@@ -54,6 +69,20 @@ const PatientForm: React.FC<PatientFormProps> = ({ onSuccess }) => {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      <div className="space-y-1.5">
+        <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Patient Name</label>
+        <div className="relative">
+          <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300" />
+          <input 
+            type="text" 
+            value={formData.name}
+            onChange={e => setFormData({...formData, name: e.target.value})}
+            className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
+            placeholder="e.g. John Doe"
+          />
+        </div>
+      </div>
+
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <label className="text-xs font-bold text-slate-400 uppercase tracking-wider ml-1">Age</label>
@@ -62,8 +91,11 @@ const PatientForm: React.FC<PatientFormProps> = ({ onSuccess }) => {
             <input 
               type="number" 
               value={formData.age}
-              onChange={e => setFormData({...formData, age: parseInt(e.target.value)})}
+              onChange={e => setFormData({...formData, age: e.target.value})}
               className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3 pl-10 pr-4 focus:ring-2 focus:ring-indigo-500 focus:outline-none transition-all"
+              placeholder="e.g. 45"
+              min="1"
+              max="150"
             />
           </div>
         </div>
@@ -129,7 +161,7 @@ const PatientForm: React.FC<PatientFormProps> = ({ onSuccess }) => {
         <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-red-600 text-xs flex items-center gap-2">
           <AlertCircle size={14} /> 
           <span className="flex-1">
-            {typeof error === 'string' ? error : (error as any).message || 'An unexpected error occurred.'}
+            {typeof error === 'string' ? error : 'An unexpected error occurred.'}
           </span>
         </div>
       )}

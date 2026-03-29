@@ -9,11 +9,7 @@ app = FastAPI(title="AI-powered Clinical Trial Matching System")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "https://clinical-trial-matching-system-3lws2mrkf.vercel.app",
-        "https://clinical-trial-matching-system.vercel.app"
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -21,38 +17,12 @@ app.add_middleware(
 
 @app.on_event("startup")
 def startup_event():
-    from sqlalchemy import text
-    from app.db.database import engine
-    from app.db.models import Base
-    
     print("🚀 App is starting up...")
     try:
-        # Step 1: Ensure basic tables exist
         Base.metadata.create_all(bind=engine)
-        
-        # Step 2: Safe Auto-Migration for the 'name' column
-        with engine.connect() as connection:
-            print("📋 Checking database schema integrity...")
-            if "postgresql" in str(engine.url):
-                connection.execute(text("ALTER TABLE patients ADD COLUMN IF NOT EXISTS name VARCHAR"))
-            else:
-                try:
-                    connection.execute(text("ALTER TABLE patients ADD COLUMN name VARCHAR"))
-                except:
-                    pass
-            
-            # Step 3: FORCE-SYNC Identity for Sarah Lee (Patient ID 3)
-            print("👤 Syncing Patient Identities...")
-            connection.execute(text("""
-                UPDATE patients 
-                SET name = 'Sarah Lee', age = 47, gender = 'female' 
-                WHERE id = 3
-            """))
-            connection.commit()
-            
-        print("✅ Database schema and identities are up to date.")
+        print("✅ Database tables are ready.")
     except Exception as e:
-        print(f"⚠️ Startup sequence warning: {e}")
+        print(f"⚠️ Startup warning: {e}")
 
 # Include routers
 app.include_router(patient.router, prefix="/patient", tags=["Patients"])

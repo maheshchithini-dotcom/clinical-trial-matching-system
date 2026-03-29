@@ -1,7 +1,5 @@
 from sqlalchemy import Column, Integer, String, Text
-from sqlalchemy.ext.declarative import declarative_base
-
-Base = declarative_base()
+from app.db.database import Base
 
 class Patient(Base):
     __tablename__ = "patients"
