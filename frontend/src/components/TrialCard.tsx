@@ -30,9 +30,9 @@ const TrialCard: React.FC<TrialCardProps> = ({ trial, match, index = 0 }) => {
     >
       <div className="flex justify-between items-start mb-4">
         <div className="space-y-1">
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{trial.nct_id}</span>
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{trial.nct_id || 'N/A'}</span>
           <h3 className="text-lg font-bold text-slate-900 line-clamp-2 leading-tight group-hover:text-indigo-600 transition-colors">
-            {trial.title || 'Untitled clinical Study'}
+            {trial.title || 'Clinical Research Study'}
           </h3>
         </div>
         {scorePercent !== null && (
@@ -45,7 +45,7 @@ const TrialCard: React.FC<TrialCardProps> = ({ trial, match, index = 0 }) => {
 
       <div className="space-y-3">
         <div className="flex flex-wrap gap-1">
-          {trial.condition.split(',').map((c, i) => (
+          {(trial.condition || 'General').split(',').map((c, i) => (
             <span key={i} className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded text-[10px] font-medium uppercase">
               {c.trim()}
             </span>
