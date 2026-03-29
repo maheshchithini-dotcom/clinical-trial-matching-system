@@ -13,6 +13,8 @@ if USE_BIOBERT:
 # Detect environment - Render provides various environment variables
 IS_PROD = os.getenv("RENDER") is not None or os.getenv("DATABASE_URL", "").startswith("postgresql://")
 
+_EMBED_MODEL = None
+
 def get_embed_model():
     global _EMBED_MODEL
     if _EMBED_MODEL is None:

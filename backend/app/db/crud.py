@@ -7,6 +7,7 @@ from app.db.models import Patient, Trial
 
 def create_patient(db: Session, data):
     patient = Patient(
+        name=data.name,
         age=data.age,
         gender=data.gender,
         conditions=",".join(data.conditions),
