@@ -32,8 +32,19 @@ def get_embed_model():
 
 def generate_embeddings(text: str):
     """
-    Generate semantic embeddings using the active model (BioBERT locally, ST in prod).
-    This provides the high clinical accuracy required for complex patients.
+    Generate semantic embeddings using the active model.
     """
     model = get_embed_model()
     return model.encode([text])[0].tolist()
+
+def bulk_generate_embeddings(texts: list[str]):
+    """
+    Generate multiple embeddings in a single batch.
+    This is significantly faster and more memory-efficient for cluster analysis.
+    """
+    if not texts:
+        return []
+    model = get_embed_model()
+    # Batch size of 16 is safe for 512MB RAM
+    embeddings = model.encode(texts, batch_size=16, show_progress_bar=False)
+    return embeddings.tolist()

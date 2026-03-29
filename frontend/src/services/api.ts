@@ -8,17 +8,19 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 30000, // 30 seconds default
 });
 
 // Add a retry interceptor for cold starts
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
-    const { config, response } = error;
-    if (!response && config && !config.__isRetryRequest) {
+    const { config } = error;
+    // Retry on timeout or 503 Service Unavailable (common during Render cold starts)
+    if (config && !config.__isRetryRequest && (error.code === 'ECONNABORTED' || error.response?.status === 503)) {
       config.__isRetryRequest = true;
-      console.warn('Backend might be starting up (cold start). Retrying in 3 seconds...');
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      console.warn('Backend is busy or starting up. Retrying in 5 seconds...');
+      await new Promise((resolve) => setTimeout(resolve, 5000));
       return api(config);
     }
     return Promise.reject(error);
@@ -39,6 +41,7 @@ export const patientService = {
     formData.append('file', file);
     const response = await api.post('/patient/parse_document', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000, // Allow 1 minute for document parsing
     });
     return response.data;
   },
@@ -50,14 +53,19 @@ export const trialService = {
     return response.data;
   },
   syncTrials: async (condition: string = 'cancer') => {
-    const response = await api.post(`/trial/fetch_trials?condition=${encodeURIComponent(condition)}`);
+    const response = await api.post(`/trial/fetch_trials?condition=${encodeURIComponent(condition)}`, {}, {
+      timeout: 120000, // Allow 2 minutes for API sync
+    });
     return response.data;
   },
 };
 
 export const matchingService = {
   matchPatient: async (patientId: number) => {
-    const response = await api.get(`/match/${patientId}`);
+    // Extensive timeout for AI matching to handle model loading
+    const response = await api.get(`/match/${patientId}`, {
+      timeout: 120000, // 120 seconds (2 minutes)
+    });
     return response.data.matches;
   },
 };
