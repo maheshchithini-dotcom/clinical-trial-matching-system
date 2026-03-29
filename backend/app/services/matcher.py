@@ -39,6 +39,9 @@ def _condition_relevance(patient_conditions, trial_condition, trial_text):
     return score
 
 def match_patient_to_trials(patient_id: int, db: Session):
+    import numpy as np
+    import faiss
+    
     patient = get_patient(db, patient_id)
     if not patient:
         return []
@@ -49,55 +52,90 @@ def match_patient_to_trials(patient_id: int, db: Session):
 
     patient_conditions_list = [c.strip().lower() for c in patient.conditions.split(",")]
     
-    patient_keywords = _extract_keywords(patient.history)
-    for c in patient_conditions_list:
-        patient_keywords.update(_extract_keywords(c))
-
-    # Score ALL trials first
-    all_scored = []
+    # 1. Strict NLP Pre-Filtering
+    relevant_trials = []
+    fallback_trials = []
     
     for trial in trials:
         trial_condition_lower = trial.condition.lower() if trial.condition else ""
         trial_text_lower = trial.text.lower() if trial.text else ""
         
-        # Calculate condition relevance
         relevance = _condition_relevance(patient_conditions_list, trial_condition_lower, trial_text_lower)
+        if relevance > 0:
+            relevant_trials.append(trial)
+        else:
+            fallback_trials.append(trial)
+            
+    # If no relevant trials found, return fallback based on simple heuristics
+    if not relevant_trials:
+        fallback_trials.sort(key=lambda t: len(set(patient.history.lower().split()).intersection(set((t.text or "").lower().split()))), reverse=True)
+        results = []
+        for t in fallback_trials[:5]:
+            results.append({
+                "trial_id": t.id,
+                "nct_id": t.nct_id,
+                "title": t.title or "Untitled Study",
+                "condition": t.condition,
+                "text": t.text,
+                "eligibility": t.eligibility,
+                "score": 0.35,
+                "confidence": "Low",
+                "explanation": "No direct condition match found. Showing closest available trials.",
+                "eligible": False
+            })
+        return results
+
+    # 2. Semantic Search (Sentence Transformers + FAISS) ONLY on relevant trials
+    patient_text = f"Patient is a {patient.age}-year-old {patient.gender}. Diagnosed conditions: {patient.conditions}. Clinical history: {patient.history}."
+    
+    trial_texts = []
+    for t in relevant_trials:
+        enriched_text = f"Title: {t.title or t.nct_id}. Conditions: {t.condition}. Summary: {t.text}. Eligibility: {t.eligibility or 'Not specified'}."
+        trial_texts.append(enriched_text)
         
-        trial_keywords = _extract_keywords(trial_text_lower)
-        trial_keywords.update(_extract_keywords(trial_condition_lower))
+    # Generate embeddings utilizing all-MiniLM-L6-v2 (BioBERT is disabled)
+    trial_embeddings = np.array([generate_embeddings(text) for text in trial_texts]).astype('float32')
+    dimension = trial_embeddings.shape[1]
+    
+    index = faiss.IndexFlatL2(dimension)
+    index.add(trial_embeddings)
+    
+    patient_embedding = np.array([generate_embeddings(patient_text)]).astype('float32')
+    
+    k = min(5, len(relevant_trials))
+    D, I = index.search(patient_embedding, k)
+    
+    matches = []
+    for i in range(k):
+        idx = I[0][i]
+        dist = float(D[0][i])
         
+        # Exponential Scoring from L2 distance
+        raw_score = np.exp(-dist / SCORE_DECAY_FACTOR) 
+        trial = relevant_trials[idx]
+        trial_condition_lower = trial.condition.lower() if trial.condition else ""
+        trial_text_lower = trial.text.lower() if trial.text else ""
+        
+        # Apply condition boost
         boost = 0.0
         matched_terms = []
-        
         for cond in patient_conditions_list:
-            cond_words = _extract_keywords(cond)
             if cond in trial_condition_lower:
                 boost += CONDITION_MATCH_BOOST * 2.0
                 matched_terms.append(cond)
             elif cond in trial_text_lower:
                 boost += CONDITION_MATCH_BOOST * 1.5
                 matched_terms.append(cond)
-            elif cond_words and cond_words.issubset(trial_keywords):
-                boost += CONDITION_MATCH_BOOST
-                matched_terms.append(cond)
-                
-        # Jaccard Similarity for context overlap
-        intersection = patient_keywords.intersection(trial_keywords)
-        union = patient_keywords.union(trial_keywords)
-        jaccard = len(intersection) / len(union) if union else 0.0
         
-        # Base score from Jaccard overlap (0.3 -> 0.7)
-        raw_score = 0.3 + (jaccard * 0.4) 
+        # Ensure scores are within 0-1 bounds and boosted correctly
         final_score = min(0.99, raw_score + boost)
-        
-        # If exact condition match exists, floor score at 0.85
         if boost >= (CONDITION_MATCH_BOOST * 2.0):
             final_score = max(0.85, final_score)
             
         confidence = get_confidence_level(final_score)
         explanation = generate_dynamic_explanation(final_score, list(set(matched_terms)))
 
-        all_scored.append({
+        matches.append({
             "trial_id": trial.id,
             "nct_id": trial.nct_id,
             "title": trial.title or "Untitled Study",
@@ -107,28 +145,8 @@ def match_patient_to_trials(patient_id: int, db: Session):
             "score": final_score,
             "confidence": confidence,
             "explanation": explanation,
-            "eligible": True,
-            "_relevance": relevance  # internal sorting key
+            "eligible": True 
         })
-    
-    # Prefer condition-relevant trials, then sort by score
-    # Split into relevant and fallback
-    relevant = [m for m in all_scored if m["_relevance"] > 0]
-    
-    if relevant:
-        relevant.sort(key=lambda x: (x["_relevance"], x["score"]), reverse=True)
-        results = relevant[:5]
-    else:
-        # No exact condition match—return best available with lower scores
-        all_scored.sort(key=lambda x: x["score"], reverse=True)
-        for m in all_scored:
-            m["score"] = min(m["score"], 0.35)  # Cap at 35% since no condition match
-            m["confidence"] = "Low"
-            m["explanation"] = "No direct condition match found. Showing closest available trials."
-        results = all_scored[:5]
-    
-    # Remove internal key before returning
-    for r in results:
-        r.pop("_relevance", None)
-    
-    return results
+        
+    matches.sort(key=lambda x: x["score"], reverse=True)
+    return matches
