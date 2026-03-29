@@ -1,42 +1,37 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useLocation, Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { matchingService, patientService } from '../services/api';
 import TrialCard from '../components/TrialCard';
-import { Sparkles, BrainCircuit, ArrowLeft, Trophy, Brain } from 'lucide-react';
+import { Sparkles, BrainCircuit, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const Matching = () => {
   const location = useLocation();
-  const patientId = new URLSearchParams(location.search).get('patientId');
+  const patientIdStr = new URLSearchParams(location.search).get('patientId');
+  const patientId = patientIdStr ? parseInt(patientIdStr) : null;
   
-  const [results, setResults] = useState<any[]>([]);
-  const [patient, setPatient] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  // Use React Query for Patients (cached globally)
+  const { data: patients = [] } = useQuery({
+    queryKey: ['patients'],
+    queryFn: patientService.getPatients,
+  });
 
-  useEffect(() => {
-    if (patientId) {
-      runMatch(parseInt(patientId));
-    }
-  }, [patientId]);
+  const patient = patients.find((p: any) => p.id === patientId);
 
-  const runMatch = async (id: number) => {
-    setLoading(true);
-    setError('');
-    try {
-      const [pat, matches] = await Promise.all([
-        patientService.getPatients().then(all => all.find((p:any) => p.id === id)),
-        matchingService.matchPatient(id)
-      ]);
-      setPatient(pat);
-      setResults(matches);
-    } catch (err: any) {
-      console.error('Matching failed', err);
-      setError('AI clinical analysis failed. The backend might be starting up—please try again after a few seconds.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Use React Query for Matching (cached per patient)
+  const { 
+    data: results = [], 
+    isLoading: loading, 
+    isError,
+    error: queryError,
+    refetch 
+  } = useQuery({
+    queryKey: ['match', patientId],
+    queryFn: () => matchingService.matchPatient(patientId!),
+    enabled: !!patientId,
+    staleTime: 10 * 60 * 1000, // Cache matches for 10 minutes
+  });
 
   if (!patientId) {
     return (
@@ -50,6 +45,8 @@ const Matching = () => {
       </div>
     );
   }
+
+  const errorMessage = queryError ? 'AI clinical analysis failed. The backend might be starting up—please try again after a few seconds.' : '';
 
   return (
     <div className="space-y-6">
@@ -110,12 +107,12 @@ const Matching = () => {
                  <div key={i} className="h-48 bg-slate-100 rounded-3xl animate-pulse"></div>
                ))}
             </div>
-          ) : error ? (
+          ) : isError ? (
             <div className="p-12 text-center bg-red-50 border border-red-100 rounded-3xl">
-              <p className="text-red-700 font-medium">{error}</p>
+              <p className="text-red-700 font-medium">{errorMessage}</p>
               <button 
-                onClick={() => runMatch(parseInt(patientId))}
-                className="mt-4 px-4 py-2 bg-red-600 text-white rounded-xl text-sm"
+                onClick={() => refetch()}
+                className="mt-4 px-4 py-2 bg-red-600 text-white rounded-xl text-sm hover:bg-red-700 transition-colors"
               >
                 Retry Analysis
               </button>
@@ -124,7 +121,7 @@ const Matching = () => {
             <div className="p-20 text-center text-slate-400">No matches found for this profile.</div>
           ) : (
             <div className="space-y-4">
-              {results.map((result, idx) => (
+              {results.map((result: any, idx: number) => (
                 <motion.div
                   key={result.trial_id}
                   initial={{ opacity: 0, x: 20 }}

@@ -24,8 +24,7 @@ def get_embed_model():
 
 def generate_embeddings(text: str):
     """
-    Generate embeddings for similarity search.
-    Uses all-MiniLM-L6-v2 for both local and production.
+    DEPRECATED: Embeddings are no longer used to ensure high performance on Free Tier.
+    Returns a dummy list to prevent breaking legacy code if any.
     """
-    model = get_embed_model()
-    return model.encode(text).tolist()
+    return [0.0] * 384
