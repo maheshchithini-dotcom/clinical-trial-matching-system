@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+sqlalchemy
+psycopg2-binary
+pydantic
+pydantic-settings
+python-dotenv
+sentence-transformers
+transformers
+torch
+faiss-cpu
+pandas
+requests
+python-multipart
+PyPDF2
+python-docx
