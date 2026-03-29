@@ -75,9 +75,9 @@ const Matching = () => {
                 <div>
                   <p className="text-xs font-bold text-slate-400 uppercase mb-2">Primary Conditions</p>
                   <div className="flex flex-wrap gap-2">
-                    {patient.conditions.split(',').map((c: string) => (
+                    {(patient.conditions || '').split(',').map((c: string) => (
                       <span key={c} className="px-2.5 py-1 bg-slate-50 border border-slate-200 text-slate-600 rounded-lg text-xs font-medium">
-                        {c.trim()}
+                        {c.trim() || 'General'}
                       </span>
                     ))}
                   </div>
@@ -85,7 +85,7 @@ const Matching = () => {
                 <div>
                    <p className="text-xs font-bold text-slate-400 uppercase mb-2">Clinical History</p>
                    <p className="text-sm text-slate-600 leading-relaxed italic line-clamp-4">
-                     {patient.history}
+                     {patient.history || 'No additional clinical history provided.'}
                    </p>
                 </div>
               </div>
