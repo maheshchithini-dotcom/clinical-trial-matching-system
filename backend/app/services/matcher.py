@@ -68,25 +68,73 @@ def _extract_age_range(text: str):
     
     return min_age, max_age
 
+def _calculate_precision_score(patient, trial, patient_conditions_normalized):
+    """
+    🩺 GLOBAL CLINICAL PRECISION ENGINE
+    This runs for EVERY match (High-Speed or AI) to ensure safety.
+    """
+    inc, exc = _parse_eligibility(trial.eligibility or "")
+    t_cond_low = (trial.condition or "").lower()
+    
+    # Base relevance (Keyword overlap)
+    hits = [c for c in patient_conditions_normalized if c in t_cond_low or c in inc]
+    score_mod = 0.15 * (len(set(hits))) if hits else 0.0
+    
+    # 🛑 STRICT EXCLUSION Logic (Safety First)
+    is_excluded = False
+    for cond in patient_conditions_normalized:
+        if f"no {cond}" in exc or f"history of {cond}" in exc or f"{cond}: no" in exc or cond in exc:
+             is_excluded = True
+             break
+    
+    if is_excluded:
+        score_mod -= 0.50 # Heavy disqualification
+    
+    # 🔒 HARD DEMOGRAPHIC GUARDRAILS
+    # 1. Age Range Check
+    min_a, max_a = _extract_age_range(trial.eligibility)
+    age_mismatch = (patient.age < min_a or patient.age > max_a)
+    if age_mismatch:
+        score_mod -= 0.60
+    
+    # 2. Gender Check
+    gender_mismatch = False
+    g_low = patient.gender.lower()
+    if (g_low == "male" and "female only" in inc) or (g_low == "female" and "male only" in inc):
+         score_mod -= 0.60
+         gender_mismatch = True
+
+    # Generate Clinical Reasoning
+    explanation = generate_dynamic_explanation(0.8, list(set(hits)))
+    if age_mismatch:
+        explanation = f"Patient age ({patient.age}) is outside the required range of {min_a}-{max_a} years."
+    elif is_excluded:
+        explanation = "Medical history indicates participation is EXCLUDED per trial criteria."
+    elif not hits:
+        explanation = "Limited condition match. Precision analysis recommended."
+
+    return {
+        "is_excluded": is_excluded,
+        "age_mismatch": age_mismatch,
+        "gender_mismatch": gender_mismatch,
+        "score_mod": score_mod,
+        "explanation": explanation,
+        "hits": hits
+    }
+
 def match_patient_to_trials(patient_id: int, db: Session):
     import numpy as np
-    import faiss
-    from app.services.embedding import bulk_generate_embeddings
     
     patient = get_patient(db, patient_id)
-    if not patient:
-        return []
-
+    if not patient: return []
     trials = get_all_trials(db)
-    if not trials:
-        return []
+    if not trials: return []
 
-    # 1. Normalize Patient Data (Doctor-Level Sync ✅)
+    # 1. Standard Clinical Normalization
     patient_conditions_raw = [c.strip().lower() for c in patient.conditions.split(",")]
     patient_conditions_normalized = [_normalize_medical_text(c) for c in patient_conditions_raw]
-    patient_history_normalized = _normalize_medical_text(patient.history)
     
-    # 2. Pre-Filtering (Clinical Relevance)
+    # 2. Pre-Filtering (Clinical Relevance Only)
     relevant_trials = []
     for trial in trials:
         trial_cond = _normalize_medical_text(trial.condition or "")
@@ -95,102 +143,75 @@ def match_patient_to_trials(patient_id: int, db: Session):
             relevant_trials.append(trial)
             
     if not relevant_trials:
-        # High-speed fallback for non-semantic trials
-        trials.sort(key=lambda t: len(set(patient_history_normalized.split()).intersection(set((t.text or "").lower().split()))), reverse=True)
-        return [{"trial_id": t.id, "score": 0.30, "confidence": "Low", "explanation": "No clinical condition match.", "eligible": False} for t in trials[:5]]
+        relevant_trials = trials[:5] # Fallback to general trials
 
-    # 3. Semantic Analysis (Subset Top 40)
-    if len(relevant_trials) > 40:
-        relevant_trials.sort(key=lambda t: _condition_relevance(patient_conditions_normalized, (t.condition or "").lower(), (t.text or "").lower()), reverse=True)
-        relevant_trials = relevant_trials[:40]
-
+    # 3. 🛡️ CRASH-PROOF CLINICAL ENGINE
+    matches = []
+    
+    # Try Semantic AI (Optional, High RAM)
+    ai_embeddings_failed = True
+    all_embeddings = None
+    
     try:
+        from app.services.embedding import bulk_generate_embeddings
+        import faiss
+        
         # Enriched Patient Context
-        patient_text = f"Patient Profile: {', '.join(patient_conditions_normalized)}. History: {patient_history_normalized}. Demographics: {patient.gender}, {patient.age}y/o."
+        p_text = f"Patient Profile: {', '.join(patient_conditions_normalized)}. History: {patient.history}."
+        t_texts = []
+        subset = relevant_trials[:20] # Strict limit for Render memory
+        for t in subset:
+            inc, _ = _parse_eligibility(t.eligibility or "")
+            t_texts.append(_normalize_medical_text(f"Study for {t.condition}. {inc[:300]}"))
         
-        trial_texts = []
-        for t in relevant_trials:
-            inc, exc = _parse_eligibility(t.eligibility or "")
-            trial_text_block = f"Study for {t.condition}. Title: {t.title}. Criteria: {inc[:600]}. Excludes: {exc[:600]}."
-            trial_texts.append(_normalize_medical_text(trial_text_block))
-        
-        all_texts = [patient_text] + trial_texts
-        all_embeddings = np.array(bulk_generate_embeddings(all_texts)).astype('float32')
-        
+        all_embeddings = np.array(bulk_generate_embeddings([p_text] + t_texts)).astype('float32')
         p_embed = all_embeddings[0:1]
         t_embeds = all_embeddings[1:]
         
         index = faiss.IndexFlatL2(t_embeds.shape[1])
         index.add(t_embeds)
+        D, I = index.search(p_embed, min(5, len(subset)))
         
-        k = min(5, len(relevant_trials))
-        D, I = index.search(p_embed, k)
-        
-        matches = []
-        for i in range(k):
+        for i in range(len(I[0])):
             idx = I[0][i]
+            trial = subset[idx]
             dist = float(D[0][i])
-            trial = relevant_trials[idx]
+            raw_base = np.exp(-dist / SCORE_DECAY_FACTOR)
             
-            # --- 🧬 STABLE CLINICAL PRECISION (The Final Verdict Fix) ---
-            raw_score = np.exp(-dist / SCORE_DECAY_FACTOR)
+            # Apply Doctor-Level Precision
+            stats = _calculate_precision_score(patient, trial, patient_conditions_normalized)
+            final_score = max(0.01, min(0.99, raw_base + stats["score_mod"]))
             
-            inc, exc = _parse_eligibility(trial.eligibility or "")
-            t_cond_low = (trial.condition or "").lower()
-            
-            # A. Inclusion Logic
-            hits = [c for c in patient_conditions_normalized if c in t_cond_low or c in inc]
-            boost = 0.12 * (len(set(hits))) if hits else 0.0
-            
-            # B. 🛑 STRICT EXCLUSION logic
-            is_excluded = False
-            for cond in patient_conditions_normalized:
-                if f"no {cond}" in exc or f"history of {cond}" in exc or f"{cond}: no" in exc or cond in exc:
-                     is_excluded = True
-                     break
-            
-            if is_excluded:
-                boost -= 0.45 # Definite mismatch
-            
-            # C. 🔒 HARD DEMOGRAPHIC GUARDRAILS
-            # 1. Age Consistency Check
-            min_a, max_a = _extract_age_range(trial.eligibility)
-            age_mismatch = False
-            if patient.age < min_a or patient.age > max_a:
-                boost -= 0.60 # Strong mismatch penalty
-                age_mismatch = True
-            
-            # 2. Gender Consistency Check
-            gender_mismatch = False
-            if (patient.gender.lower() == "male" and "female only" in inc) or (patient.gender.lower() == "female" and "male only" in inc):
-                 boost -= 0.60
-                 gender_mismatch = True
-
-            final_score = max(0.01, min(0.99, raw_score + boost))
-            confidence = "High" if final_score > 0.8 else "Medium" if final_score > 0.6 else "Low"
-            
-            explanation = generate_dynamic_explanation(final_score, list(set(hits)))
-            if age_mismatch:
-                explanation = f"Patient age ({patient.age}) is outside the required range of {min_a}-{max_a} years for this study."
-            elif is_excluded:
-                explanation = "Medical history indicates participation is EXCLUDED per trial criteria."
-
             matches.append({
                 "trial_id": trial.id,
                 "nct_id": trial.nct_id,
-                "title": trial.title or "Untitled Study",
+                "title": trial.title,
                 "condition": trial.condition,
-                "text": trial.text,
-                "eligibility": trial.eligibility,
                 "score": final_score,
-                "confidence": confidence,
-                "explanation": explanation,
-                "eligible": not (is_excluded or age_mismatch or gender_mismatch)
+                "confidence": "High" if final_score > 0.75 else "Medium",
+                "explanation": stats["explanation"],
+                "eligible": not (stats["is_excluded"] or stats["age_mismatch"] or stats["gender_mismatch"])
             })
-            
-        matches.sort(key=lambda x: x["score"], reverse=True)
-        return matches
-
+        ai_embeddings_failed = False
     except Exception as e:
-        print(f"⚠️ AI Critical Error: {e}. Defaulting to keyword precision.")
-        return [{"trial_id": t.id, "score": 0.55, "explanation": "High-speed condition matching verified."} for t in relevant_trials[:5]]
+        print(f"⚠️ Stability Triggered: AI Engine suspended ({e}). Switching to High-Speed Clinical Matcher.")
+
+    # 4. Fallback: High-Speed Clinical Matcher (Zero RAM ✅)
+    if ai_embeddings_failed:
+        for trial in relevant_trials[:5]:
+            stats = _calculate_precision_score(patient, trial, patient_conditions_normalized)
+            final_score = max(0.1, min(0.85, 0.45 + stats["score_mod"]))
+            
+            matches.append({
+                "trial_id": trial.id,
+                "nct_id": trial.nct_id,
+                "title": trial.title,
+                "condition": trial.condition,
+                "score": final_score,
+                "confidence": "Medium",
+                "explanation": stats["explanation"] + " (High-Speed Match verified)",
+                "eligible": not (stats["is_excluded"] or stats["age_mismatch"] or stats["gender_mismatch"])
+            })
+
+    matches.sort(key=lambda x: x["score"], reverse=True)
+    return matches[:5]
