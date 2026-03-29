@@ -10,21 +10,30 @@ if USE_BIOBERT:
         print("⚠️ BioBERT dependencies not found. Falling back to lightweight mode.")
         USE_BIOBERT = False
 
-# Primary embedding model – loaded lazily to prevent startup timeouts
-_EMBED_MODEL = None
+# Detect environment - Render provides various environment variables
+IS_PROD = os.getenv("RENDER") is not None or os.getenv("DATABASE_URL", "").startswith("postgresql://")
 
 def get_embed_model():
     global _EMBED_MODEL
     if _EMBED_MODEL is None:
         from sentence_transformers import SentenceTransformer
-        print("📥 Loading embedding model (all-MiniLM-L6-v2)...")
-        _EMBED_MODEL = SentenceTransformer('all-MiniLM-L6-v2')
-        print("✅ Model loaded.")
+        # Deployment: Use all-MiniLM-L6-v2 (High Accuracy + Low Memory)
+        # Local: Use BioBERT if you have the RAM
+        model_name = "all-MiniLM-L6-v2" if IS_PROD else "dmis-lab/biobert-v1.1"
+        try:
+             print(f"📥 Loading AI Model: {model_name}...")
+             _EMBED_MODEL = SentenceTransformer(model_name)
+             print(f"✅ {model_name} loaded successfully.")
+        except Exception as e:
+             print(f"⚠️ Failed to load {model_name}: {e}. Falling back to default.")
+             _EMBED_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+             
     return _EMBED_MODEL
 
 def generate_embeddings(text: str):
     """
-    DEPRECATED: Embeddings are no longer used to ensure high performance on Free Tier.
-    Returns a dummy list to prevent breaking legacy code if any.
+    Generate semantic embeddings using the active model (BioBERT locally, ST in prod).
+    This provides the high clinical accuracy required for complex patients.
     """
-    return [0.0] * 384
+    model = get_embed_model()
+    return model.encode([text])[0].tolist()
