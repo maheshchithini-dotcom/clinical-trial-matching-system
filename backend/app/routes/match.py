@@ -36,8 +36,11 @@ def match_patient(patient_id: int, response: Response, db: Session = Depends(get
     except Exception as e:
         import traceback
         print(f"🚨 MATCH ERROR: {e}")
-        traceback.print_exc()
-        from app.db.crud import get_all_trials
-        trials = get_all_trials(db)[:3]
-        fallback = [{"trial_id": t.id, "score": 0.50, "explanation": "Security Fallback: Please refresh in a moment."} for t in trials]
-        return {"patient_id": patient_id, "matches": fallback, "status": "fallback_active"}
+        error_traceback = traceback.format_exc()
+        try:
+            from app.db.crud import get_all_trials
+            trials = get_all_trials(db)[:3]
+            fallback = [{"trial_id": t.id, "score": 0.50, "explanation": f"Security Fallback due to error: {str(e)}"} for t in trials]
+        except:
+            fallback = [{"trial_id": 1, "score": 0.50, "explanation": f"Security Fallback due to error: {str(e)}"}]
+        return {"patient_id": patient_id, "matches": fallback, "status": "fallback_active", "error": str(e), "traceback": error_traceback}
