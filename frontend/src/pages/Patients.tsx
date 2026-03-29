@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { patientService } from '../services/api';
 import PatientForm from '../components/PatientForm';
 import { UserPlus, Search, MoreVertical, FileText, XCircle } from 'lucide-react';
@@ -6,24 +7,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link } from 'react-router-dom';
 
 const Patients = () => {
-  const [patients, setPatients] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const queryClient = useQueryClient();
 
-  const fetchPatients = async () => {
-    try {
-      const data = await patientService.getPatients();
-      setPatients(data);
-    } catch (error) {
-      console.error('Failed to fetch patients', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchPatients();
-  }, []);
+  const { data: patients = [], isLoading: loading } = useQuery({
+    queryKey: ['patients'],
+    queryFn: patientService.getPatients,
+  });
 
   return (
     <div className="space-y-6">
@@ -57,7 +47,7 @@ const Patients = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-slate-200">
-              {patients.map((p) => (
+              {patients.map((p: any) => (
                 <tr key={p.id} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="font-semibold text-slate-900">{p.name || 'Anonymous User'}</div>
@@ -120,7 +110,7 @@ const Patients = () => {
                 </button>
               </div>
               <div className="p-6 max-h-[80vh] overflow-y-auto">
-                <PatientForm onSuccess={() => { setShowForm(false); fetchPatients(); }} />
+                <PatientForm onSuccess={() => { setShowForm(false); queryClient.invalidateQueries({ queryKey: ['patients'] }); }} />
               </div>
             </motion.div>
           </div>

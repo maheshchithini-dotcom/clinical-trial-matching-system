@@ -1,35 +1,29 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { patientService, trialService } from '../services/api';
-import { Activity, Users, Database, CheckCircle2, XCircle } from 'lucide-react';
+import { Activity, Users, Database } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 import { useNavigate } from 'react-router-dom';
 
 const Home = () => {
   const navigate = useNavigate();
-  const [stats, setStats] = useState({ patients: 0, trials: 0 });
-  const [health, setHealth] = useState<'pending' | 'ok' | 'fail'>('pending');
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [patients, trials] = await Promise.all([
-          patientService.getPatients(),
-          trialService.getTrials()
-        ]);
-        setStats({ patients: patients.length, trials: trials.length });
-        setHealth('ok');
-      } catch (error) {
-        console.error('Ready check failed', error);
-        setHealth('fail');
-      }
-    };
-    fetchData();
-  }, []);
+  const { data: patients, isError: isPatientsError } = useQuery({
+    queryKey: ['patients'],
+    queryFn: patientService.getPatients,
+  });
+
+  const { data: trials, isError: isTrialsError } = useQuery({
+    queryKey: ['trials'],
+    queryFn: trialService.getTrials,
+  });
+
+  const health = isPatientsError || isTrialsError ? 'fail' : (patients && trials ? 'ok' : 'pending');
 
   const cards = [
-    { title: 'Total Patients', value: stats.patients, icon: Users, color: 'text-blue-500' },
-    { title: 'Clinical Trials', value: stats.trials, icon: Database, color: 'text-indigo-500' },
+    { title: 'Total Patients', value: patients ? patients.length : 0, icon: Users, color: 'text-blue-500' },
+    { title: 'Clinical Trials', value: trials ? trials.length : 0, icon: Database, color: 'text-indigo-500' },
     { title: 'API Status', value: health === 'ok' ? 'Healthy' : health === 'fail' ? 'Down' : 'Checking...', icon: Activity, color: health === 'ok' ? 'text-green-500' : 'text-red-500' },
   ];
 

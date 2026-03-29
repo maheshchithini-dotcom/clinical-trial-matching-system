@@ -1,36 +1,25 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { trialService } from '../services/api';
 import TrialCard from '../components/TrialCard';
 import { RefreshCw, Search, Database } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const Trials = () => {
-  const [trials, setTrials] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [syncing, setSyncing] = useState(false);
   const [search, setSearch] = useState('');
 
-  const fetchTrials = async () => {
-    setLoading(true);
-    try {
-      const data = await trialService.getTrials();
-      setTrials(data);
-    } catch (error) {
-      console.error('Failed to fetch trials', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchTrials();
-  }, []);
+  const { data: trials = [], isLoading: loading } = useQuery({
+    queryKey: ['trials'],
+    queryFn: trialService.getTrials,
+  });
 
   const handleSync = async () => {
     setSyncing(true);
     try {
       await trialService.syncTrials(search || 'cancer');
-      await fetchTrials();
+      await queryClient.invalidateQueries({ queryKey: ['trials'] });
     } catch (error) {
       console.error('Sync failed', error);
     } finally {
@@ -38,7 +27,7 @@ const Trials = () => {
     }
   };
 
-  const filteredTrials = trials.filter(t => 
+  const filteredTrials = trials.filter((t: any) => 
     t.title?.toLowerCase().includes(search.toLowerCase()) || 
     t.condition?.toLowerCase().includes(search.toLowerCase()) ||
     t.nct_id?.toLowerCase().includes(search.toLowerCase())
@@ -87,7 +76,7 @@ const Trials = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredTrials.map((trial, idx) => (
+          {filteredTrials.map((trial: any, idx: number) => (
             <motion.div
               key={trial.id}
               initial={{ opacity: 0, scale: 0.95 }}
