@@ -15,6 +15,7 @@ def fetch_trials_from_api(db: Session, query: str = "diabetes"):
     }
 
     try:
+        
         response = requests.get(url, params=params)
         response.raise_for_status()
         data = response.json()
